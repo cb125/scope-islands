@@ -98,10 +98,16 @@ def plug(foc, con, level = 0, reduction = False):
     if not con.isContext: raise(Exception)
     if con == i: return(foc)
     elif con.r.r == b:
-        if reduction and level <= con.c: pass
+        if reduction:
+            if (level == 0 or con.c == 0): l = level + con.c
+            else: l = min(level, con.c)
+            return(Struc(plug(foc, con.l, l, reduction), l, con.r.l))
         else: return(Struc(plug(foc, con.l, level, reduction), con.c, con.r.l))
     elif con.r.r == c:
-        if reduction and level <= con.c: pass
+        if reduction:
+            if (level == 0 or con.c == 0): l = level + con.c
+            else: l = min(level, con.c)
+            return(Struc(con.l, l, plug(foc, con.r.l, l, reduction)))
         else: return(Struc(con.l, con.c, plug(foc, con.r.l, level, reduction)))
 
 @functools.lru_cache(maxsize=None)
@@ -125,7 +131,8 @@ def prove(l,r,b,i): #Struc, For, expansion budget, least unused variable index
 
     for (foc, con) in foci(l):
 
-        if (foc.isStruc and foc.r.isLeaf and foc.r.form.c == '\\'):
+        if (foc.isStruc and foc.r.isLeaf and foc.r.form.c == '\\'
+                        and (foc.c == 0 or foc.r.form.level < foc.c)):
            proofs += [Proof("\\L", l, r, i, x, y) 
                         for x in prove(foc.l, foc.r.form.l, b, i)
                         for y in prove(plug(Leaf(foc.r.form.r,
@@ -133,7 +140,8 @@ def prove(l,r,b,i): #Struc, For, expansion budget, least unused variable index
                                                   + x.term + ")")),
                                             con), r, b, i)]
 
-        if (foc.isStruc and foc.l.isLeaf and foc.l.form.c == "/"):
+        if (foc.isStruc and foc.l.isLeaf and foc.l.form.c == "/"
+                        and (foc.c == 0 or foc.l.form.level < foc.c)):
            proofs += [Proof("/L", l, r, i, x, y)
                         for x in prove(foc.r, foc.l.form.r, b, i)
                         for y in prove(plug(Leaf(foc.l.form.l,
@@ -167,13 +175,11 @@ top = For("T")
 
 def build(s):
     if isinstance(s, Leaf): return(s)
-    elif len(s) == 2: return(Struc(build(s[0]), 0, build(s[1])))
-    elif len(s) == 3: return(Struc(build(s[0]), s[1], build(s[2])))
+    else: return(Struc(build(s[0]), 0, build(s[1])))
 
 def sentenceToString(s):
     if isinstance(s, Leaf): return(s.term)
-    elif len(s) == 2: return(sentenceToString(s[0]) + " " + sentenceToString(s[1]))
-    elif len(s) == 3: return(sentenceToString(s[0]) + " " + sentenceToString(s[2]))
+    else: return(sentenceToString(s[0]) + " " + sentenceToString(s[1]))
 
 def do (sentence, goal=s, budget = 1):
    sen = build(sentence)
@@ -189,7 +195,7 @@ saw = Leaf(For(For(dp, "\\", s), "/", dp), "saw")
 gave = Leaf(For(For(For(dp, "\\", s), "/", dp), "/", dp), "gave")
 thought = Leaf(For(For(dp, "\\", s), "/", s, 2), "thought")
 xif = Leaf(For(For(s, "/", s), "/", s, 3), "if")
-everyone = Leaf(For(s, "/", For(dp, "\\", s)), "everyone")
+everyone = Leaf(For(s, "/", For(dp, "\\", s, 1)), "everyone")
 someone = Leaf(For(s, "/", For(dp, "\\", s, 4)), "someone")
 anyone = Leaf(For(s, "/", For(dp, "\\", s, 3)), "anyone")
 a = Leaf(For(For(s, "/", For(dp, "\\", s)), "/", nom), "a")
@@ -202,61 +208,36 @@ people = Leaf(nom, "people")
 red = Leaf(For(nom, "/", nom), "red")
 damn = Leaf(For(top, "/", For(For(nom, "/", nom), "\\", s, 6)), "damn")
 tdd = Leaf(For(top, "/", For(dp, "\\", s, 6)), "the-damn-dog")
-someof = Leaf(For(dp, "/", dp), "part")
-same = Leaf(For(For(dp, "\\", s), "/",
-                For(For(nom, "/", nom), "\\", For(dp, "\\", s))), "same")
-mssame = Leaf(For(For(For(dp, "\\", s), "/", For(dp, "\\", For(dp, "\\", s))),
-                     "/", For(For(nom, "/", nom), "\\", dp)), "mssame")
-who1 = Leaf(For(q, "/", For(unit, "x", For(dp, "\\", s))), "who1")
-who = Leaf(For(q, "/", For(dp, "\\", s)), "who")
-bidk = Leaf(For(For(s, "\\", s), "/", q), "bidk")
-sg = Leaf(For(For(For(dp, "\\", s), "\\", s), "/", 
-              For(For(dp, "\\", s), "\\", For(For(dp, "\\", s), "\\", s))),
-          "sg")
-foc = Leaf(For(For(f, "/", For(dp, "\\", For(dp, "\\", s, 4), 4)), "/", dp), "foc")
+foc = Leaf(For(For(f, "/", For(dp, "\\", For(dp, "\\", s, 4), 4)), "/", dp),
+           "foc")
 only = Leaf(For(For(dp, "\\", s), "/", f, 4), "only")
 
 #do((ann, left))
 #do((everyone, left))
 #do((ann, (saw, everyone)))
 #do((someone, (saw, everyone)))
-#do((ann, (saw, (the, (same, bee)))))
-#do(((the, (same, bee)), (saw, ann)))
-#do(((the, (same, bee)), (saw, everyone)))
-
-#do((ann, ((gave, (the, (same, man))), (the, (same, bee)))), 2)
-#do(((the, (same, man)), ((gave, (a, woman)), (the, (same, bee)))), 3)
-#do((who, (ann, saw)))
-
-#do((ann, (saw, (someof, (the, (same, people))))))
-
-#do((who, left))
-#do((someone, left))
-#do(((ann, left), (bidk, (who, left))))
-#do(((someone, left), (bidk, (who, left))))
-#do(((someone, left), (bidk, (who, sg))))
-#do(((bill, (saw, ann)), (bidk, (who, sg))))
-#do(((bill, (saw, someone)), (bidk, (who, sg))), 3)
-
 #do((ann, (only, (saw, (foc, bill)))))
 
-do((ann, (thought, 2, (everyone, left))))
-do((ann, (thought, 2, (someone, left))))
-#do((ann, (only, 4, (thought, 1, (bill, (saw, (foc, carl)))))))
-#do((ann, (only, 4, (thought, 1, (everyone, (saw, (foc, carl)))))))
+##do((ann, (thought, (everyone, left))))
+##do((ann, (thought, (someone, left))))
 
-#do((ann, (only, 4, (thought, 2, (someone, (saw, (foc, carl)))))))
-#do(((xif, 3, (someone, left)), (ann, left)))
-#do(((xif, 3, (anyone, left)), (ann, left)))
-#do(((xif, 3, (everyone, left)), (ann, left)))
-#do(((xif, 3, (ann, (thought, 2, (someone, left)))), (bill, left)))
-#do(((xif, 3, (ann, (thought, 2, (anyone, left)))), (bill, left)))
-#do((ann, (thought, 2, ((the, (damn, dog)), left))), top)
-#do(((the, (damn, dog)), (only, 4, (thought, 2, (ann, (saw, (foc, carl)))))), top)
+#do((ann, (only, (thought, (bill, (saw, (foc, carl)))))))
+#do((ann, (only, (thought, (everyone, (saw, (foc, carl)))))))
+#do((ann, (only, (thought, (someone, (saw, (foc, carl)))))))
+
+#do(((xif, (someone, left)), (ann, left)))
+#do(((xif, (anyone, left)), (ann, left)))
+#do(((xif, (everyone, left)), (ann, left)))
+#do(((xif, (ann, (thought, (someone, left)))), (bill, left)))
+#do(((xif, (ann, (thought, (anyone, left)))), (bill, left)))
+
+#do((ann, (thought, ((the, (damn, dog)), left))), top)
 #do(((xif, ((the, (damn, dog)), left)), (ann, left)), top)
-#do((ann, (only, 4, (saw, (foc, bill)))))
-#do((ann, (only, 4, (thought, 2, (someone, (saw, (foc, carl)))))))
-#do((ann, (thought, 2, (someone, (saw, carl)))))
-#do((ann, (only, 4, (thought, 2, ((the, (red, dog)), (saw, (foc, carl)))))))
-##do((ann, (only, 4, (thought, 2, ((the, (damn, dog)), (saw, (foc, carl)))))), top, 2)
-#do((ann, (only, 4, (thought, 2, (tdd, (saw, (foc, carl)))))), top, 2)
+
+#do((ann, (only, (thought, ((the, (damn, dog)), (saw, (foc, carl)))))), top, 2)
+#do((ann, (only, (thought, (tdd, (saw, (foc, carl)))))), top, 2)
+
+#do((ann, (thought, (someone, (saw, bill)))))
+do((ann, (thought, (someone, (saw, everyone)))), s, 2)
+#do((ann, (thought, (everyone, (saw, someone)))))
+
