@@ -181,7 +181,7 @@ def sentenceToString(s):
     if isinstance(s, Leaf): return(s.term)
     else: return(sentenceToString(s[0]) + " " + sentenceToString(s[1]))
 
-def do (sentence, goal=s, budget = 1):
+def do (sentence, goal=s, budget = 2):
    sen = build(sentence)
    print(sentenceToString(sentence))
    list(map(lambda x: print(x.term, ":\n", x.proofString()),
@@ -216,28 +216,27 @@ only = Leaf(For(For(dp, "\\", s), "/", f, 4), "only")
 #do((everyone, left))
 #do((ann, (saw, everyone)))
 #do((someone, (saw, everyone)))
+
 #do((ann, (only, (saw, (foc, bill)))))
-
-##do((ann, (thought, (everyone, left))))
-##do((ann, (thought, (someone, left))))
-
-#do((ann, (only, (thought, (bill, (saw, (foc, carl)))))))
-#do((ann, (only, (thought, (everyone, (saw, (foc, carl)))))))
-#do((ann, (only, (thought, (someone, (saw, (foc, carl)))))))
+#do((ann, (only, (thought, (everyone, (saw, (foc, carl)))))), s, 1)
+#do((ann, (only, (thought, (someone, (saw, (foc, carl)))))), s, 1)
 
 #do(((xif, (someone, left)), (ann, left)))
 #do(((xif, (anyone, left)), (ann, left)))
 #do(((xif, (everyone, left)), (ann, left)))
-#do(((xif, (ann, (thought, (someone, left)))), (bill, left)))
-#do(((xif, (ann, (thought, (anyone, left)))), (bill, left)))
+#do(((xif, (ann, (thought, (someone, left)))), (bill, left)), s, 1)
+#do(((xif, (ann, (thought, (anyone, left)))), (bill, left)), s, 1)
 
 #do((ann, (thought, ((the, (damn, dog)), left))), top)
 #do(((xif, ((the, (damn, dog)), left)), (ann, left)), top)
 
-#do((ann, (only, (thought, ((the, (damn, dog)), (saw, (foc, carl)))))), top, 2)
-#do((ann, (only, (thought, (tdd, (saw, (foc, carl)))))), top, 2)
+#do((ann, (only, (thought, ((the, (damn, dog)), (saw, (foc, carl)))))), top)
+#do((ann, (only, (thought, (tdd, (saw, (foc, carl)))))), top)
 
 #do((ann, (thought, (someone, (saw, bill)))))
-do((ann, (thought, (someone, (saw, everyone)))), s, 2)
+#do((ann, (thought, (someone, (saw, everyone)))))
 #do((ann, (thought, (everyone, (saw, someone)))))
+
+do((ann, (thought, (everyone, left))))
+do((ann, (thought, (someone, left))))
 
