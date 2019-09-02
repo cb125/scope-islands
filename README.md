@@ -8,4 +8,4 @@ The slides are from the September 2019 meeting of Sinn und Bedeutung in Osnabrue
 
 The paper "The Logic of Quantifier Raising" is a manuscript currently under review.
 
-The python code explores using syntactic modes of composition.  Try "python3 islands.py"
+The python code explores using syntactic modes of composition to manage scope islands.  Try "python3 islands.py"
