@@ -1,4 +1,7 @@
 # scope-islands
+
+I'm Chris Barker (https://nyu.edu/projects/cb125).
+
 This project uses syntactic modes of composition to explore scope islands.
 
 The slides are from the September 2019 meeting of Sinn und Bedeutung in Osnabrueck.
