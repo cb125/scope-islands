@@ -10,4 +10,4 @@ The paper "The Logic of Quantifier Raising" is a manuscript currently under revi
 
 The python code explores using syntactic modes of composition to manage scope islands.  Try "python3 islands.py"
 
-A draft based on the slides is currently under development--October 2019, I hope--
+A draft based on the slides is currently under development--write to me if you're interested--
