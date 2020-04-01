@@ -1,9 +1,9 @@
+import Prelude hiding ((<>))
 import Data.List
 import Text.PrettyPrint
 import Debug.Trace
 
 abstractionBudget = 1
-inf = 9
 
 -- Data structures: Formulas, semantic Terms, syntactic Structures, Proofs:
 data For = DP | S | N | T | F
@@ -14,19 +14,28 @@ data Proof = Proof String Str For [Proof] Ter deriving Show
 instance Eq Proof where (Proof _ b c _ e) == (Proof _ w x _ z)
                           = (b == w) && (c == x) && e == z
 
-focus :: Str -> [(Str, Str)]
+focus :: Str -> [Str]
 focus s = case s of 
-  Node m l r ->    [(s,I)]
-                ++ [(f, Node m c (Node m r B)) | (f, c) <- focus l]
-                ++ [(f, Node m l (Node m c C)) | (f, c) <- focus r]
-  _ -> [(s,I)]
+  Node i l r ->    [Node 0 s I]
+                ++ [Node j f (Node i c (Node 0 r B)) | Node j f c <- focus l
+--                     , not (isContext s)
+                     ]
+                ++ [Node j f (Node i l (Node 0 c C)) | Node j f c <- focus r]
+  _ -> [Node 0 s I]
 
 plug :: Str -> Str
 plug s = case s of
   Node _ f I -> f
-  Node m f (Node m' c (Node m'' r B)) -> Node (min m m') (plug (Node m f c)) r
-  Node m f (Node m' l (Node m'' c C)) -> Node (min m m') l (plug (Node m f c))
+  Node m f (Node n c (Node _ r B)) -> Node n (plug (Node m f c)) r
+  Node m f (Node n l (Node _ c C)) -> Node n l (plug (Node m f c))
   _ -> s
+
+reducible :: Str -> Bool -- tests for scope island violation
+reducible s = case s of
+  Node _ _ I -> True
+  Node m f (Node n c (Node _ _ B)) -> (m >= n) && reducible (Node m f c)
+  Node m f (Node n _ (Node _ c C)) -> (m >= n) && reducible (Node m f c)
+  _ -> True
 
 isContext :: Str -> Bool
 isContext (Node _ _ (Node _ _ s)) = s == B || s == C
@@ -48,11 +57,12 @@ prove l r n i = let agenda = focus l in
       | Node m p c <- [l]
       , m > 0
       , isContext c
+      , reducible l
       , x <- prove (plug l) r (n-1) i],
 
     [Proof "EXP" l r [x] (term x)
       | n < abstractionBudget
-      , (f, c) <- agenda
+      , Node _ f c <- agenda
       , c /= I, f /= I
       , x <- prove (Node 0 f c) r (n+1) i],
 
@@ -65,30 +75,28 @@ prove l r n i = let agenda = focus l in
       , x <- prove (Node m (Leaf (Var i) a) l) c n (i+1)],
 
     [Proof "/L" l r [x, y] (term y) 
-      | (Node m (Leaf tl (FS m' b a)) gam, c) <- agenda
+      | Node _ (Node m (Leaf tl (FS m' b a)) gam)  c <- agenda
       , m == 0 || m >= m'
       , x <- prove gam a n i
       , y <- prove (plug (Node m (Leaf (App tl (term x)) b) c)) r n i],
 
     [Proof "\\L" l r [x, y] (term y) 
-      | (Node m gam (Leaf tl (BS m' a b)), c) <- agenda
+      | Node _ (Node m gam (Leaf tl (BS m' a b))) c <- agenda
       , m == 0 || m >= m'
       , x <- prove gam a n i
       , y <- prove (plug (Node m (Leaf (App tl (term x)) b) c)) r n i]
     ])
 
 try :: (Str, For) -> [Doc]
-try (s, f) = map (\p -> (text "\n\n") <> -- prettyTerm (term p) $+$
+try (s, f) = map (\p -> (text "\n") <> -- prettyTerm (term p) $+$
                                          prettyTerm (etaReduce (term p)) $+$
---                        prettyProof p
---                         $+$ text (show (s,f)) <>
-                           (text "\n\n"))
+--                        prettyProof p $+$  -- uncomment to see derivation
+                           (text "\n"))
                  (prove s f 0 0)
 
 etaReduce :: Ter -> Ter
 etaReduce (Lam i (App t (Var i'))) =
   if (i == i') then etaReduce t else (Lam i (App (etaReduce t) (Var i')))
--- etaReduce (Pair t1 t2) = Pair (etaReduce t1) (etaReduce t2)
 etaReduce (App t1 t2) = App (etaReduce t1) (etaReduce t2)
 etaReduce t = t
 
@@ -96,39 +104,36 @@ etaReduce t = t
 
 ann = Leaf (Op "ann") DP
 bill = Leaf (Op "bill") DP
-carl = Leaf (Op "carl") DP
-left = Leaf (Op "left") (BS 1 DP S)
-saw = Leaf (Op "saw") (FS 1 (BS 1 DP S) DP)
-the = Leaf (Op "the") (FS 1 DP N)
-same = Leaf (Op "same") (FS 1 (BS 1 DP S) (BS 1 (FS 1 N N) (BS 1 DP S)))
-book = Leaf (Op "book") N
-tsb = Leaf (Op "tsb") (FS 1 (BS 1 DP S) (BS 1 DP (BS 1 DP S)))
-today = Leaf (Op "today") (BS 1 (BS 1 DP S) (BS 1 DP S))
-thought = Leaf (Op "thought") (FS 2 (BS 1 DP S) S)
-xif = Leaf (Op "if") (FS 4 (FS 1 S S) S)
-someone = Leaf (Op "someone") (FS 1 S (BS 5 DP S))
-anyone = Leaf (Op "anyone") (FS 1 S (BS 3 DP S))
-everyone = Leaf (Op "everyone") (FS 1 S (BS 1 DP S))
-a = Leaf (Op "a") (FS 1 (FS 1 S (BS 1 DP S)) N)
-bee = Leaf (Op "bee") N
 dog = Leaf (Op "dog") N
-man = Leaf (Op "man") N
-woman = Leaf (Op "woman") N
-people = Leaf (Op "people") N
-red = Leaf (Op "red") (FS 1 N N)
-damn = Leaf (Op "damn") (FS 1 T (BS 8 (FS 1 N N) S))
-only = Leaf (Op "only") (FS 7 (BS 1 DP S) F)
-foc = Leaf (Op "foc") (FS 1 (FS 6 F (BS 6 DP (BS 6 DP S))) DP)
+left = Leaf (Op "left") (BS 0 DP S)
+the = Leaf (Op "the") (FS 0 DP N)
+saw = Leaf (Op "saw") (FS 0 (BS 0 DP S) DP)
+everyone = Leaf (Op "everyone") (FS 0 S (BS 0 DP S))
+anyone = Leaf (Op "anyone") (FS 0 S (BS 1 DP S))
+someone = Leaf (Op "someone") (FS 0 S (BS 2 DP S))
+thought = Leaf (Op "thought") (FS 1 (BS 0 DP S) S)
+xif = Leaf (Op "if") (FS 2 (FS 0 S S) S)
+only = Leaf (Op "only") (FS 3 (BS 0 DP S) F)
+foc = Leaf (Op "foc") (FS 0 (FS 0 F (BS 3 DP (BS 0 DP S))) DP)
+damn = Leaf (Op "damn") (FS 0 T (BS 3 (FS 0 N N) S))
 
-p1 = (Node inf ann (Node inf thought (Node inf everyone left)), S)
-p2 = (Node inf ann (Node inf thought (Node inf someone left)), S)
-p3 = (Node inf ann (Node inf only (Node inf thought (Node inf someone
-       (Node inf saw (Node inf foc bill))))), S)
-p4 = (Node inf ann (Node inf only (Node inf thought (Node inf
-       (Node inf the (Node inf damn dog)) (Node inf saw (Node inf foc
-       bill))))), T)
+ex83 = (Node 0 ann (Node 1 thought (Node 0 everyone left)), S)
+ex84 = (Node 0 ann (Node 1 thought (Node 0 someone left)), S)
 
-regression = map try [p1, p2, p3, p4] 
+ex85 = (Node 0 (Node 2 xif (Node 0 anyone left)) (Node 0 ann left), S)
+ex86 = (Node 0 (Node 2 xif (Node 0 someone left)) (Node 0 ann left), S)
+
+ex87 = (Node 0 ann
+          (Node 3 only
+             (Node 1 thought 
+                (Node 0 someone (Node 0 saw (Node 0 foc bill))))), S)
+
+ex88 = (Node 0 ann
+          (Node 3 only
+             (Node 1 thought 
+                (Node 0 (Node 0 the (Node 0 damn dog))
+                   (Node 0 saw (Node 0 foc bill))))), T)
+
 
 -- =============================================================================
 
@@ -157,7 +162,7 @@ prettyNode v s@(Node m l r) = if isContext s
   then text "\\" <> (char (vars!!v))
                  <> prettyNode' (v+1) (plug (Node m (Leaf (Var v) S) s))
   else prettyNode' v l
-          <+> text (if m == inf then "." else (show m))
+          <+> text (show m)
           <+> prettyNode' v r
 prettyNode' v s@(Node _ _ _) = parens (prettyNode v s)
 prettyNode' v s = prettyStr s
@@ -176,3 +181,6 @@ prettyTerm (Op s) = text s
 prettyTerm (Var i) = char (vars!!i)
 prettyTerm (Lam i t) = parens (char '\\' <> char (vars!!i) <+> prettyTerm t)
 prettyTerm (App t1 t2) = parens ((prettyTerm t1) <+> (prettyTerm t2))
+
+main = print $ map try [ex83, ex84, ex85, ex86, ex87, ex88]
+
