@@ -1,3 +1,7 @@
+-- This code implements the fragment described in "Rethinking scope islands"
+-- See github.com/cb125/scope-islands
+-- load into ghci, then type "main"
+
 import Prelude hiding ((<>))
 import Data.List
 import Text.PrettyPrint
@@ -17,9 +21,7 @@ instance Eq Proof where (Proof _ b c _ e) == (Proof _ w x _ z)
 focus :: Str -> [Str]
 focus s = case s of 
   Node i l r ->    [Node 0 s I]
-                ++ [Node j f (Node i c (Node 0 r B)) | Node j f c <- focus l
---                     , not (isContext s)
-                     ]
+                ++ [Node j f (Node i c (Node 0 r B)) | Node j f c <- focus l]
                 ++ [Node j f (Node i l (Node 0 c C)) | Node j f c <- focus r]
   _ -> [Node 0 s I]
 
@@ -108,29 +110,35 @@ dog = Leaf (Op "dog") N
 left = Leaf (Op "left") (BS 0 DP S)
 the = Leaf (Op "the") (FS 0 DP N)
 saw = Leaf (Op "saw") (FS 0 (BS 0 DP S) DP)
-everyone = Leaf (Op "everyone") (FS 0 S (BS 0 DP S))
-anyone = Leaf (Op "anyone") (FS 0 S (BS 1 DP S))
-someone = Leaf (Op "someone") (FS 0 S (BS 2 DP S))
-thought = Leaf (Op "thought") (FS 1 (BS 0 DP S) S)
-xif = Leaf (Op "if") (FS 2 (FS 0 S S) S)
-only = Leaf (Op "only") (FS 3 (BS 0 DP S) F)
-foc = Leaf (Op "foc") (FS 0 (FS 0 F (BS 3 DP (BS 0 DP S))) DP)
-damn = Leaf (Op "damn") (FS 0 T (BS 3 (FS 0 N N) S))
+noone = Leaf (Op "no one") (FS 0 S (BS 0 DP S))
+everyone = Leaf (Op "everyone") (FS 0 S (BS 1 DP S))
+anyone = Leaf (Op "anyone") (FS 0 S (BS 2 DP S))
+someone = Leaf (Op "someone") (FS 0 S (BS 3 DP S))
+ensured = Leaf (Op "ensured") (FS 1 (BS 0 DP S) S)
+thought = Leaf (Op "thought") (FS 2 (BS 0 DP S) S)
+doubts = Leaf (Op "doubts") (FS 3 (BS 0 DP S) S)
+only = Leaf (Op "only") (FS 4 (BS 0 DP S) F)
+foc = Leaf (Op "foc") (FS 0 (FS 0 F (BS 4 DP (BS 0 DP S))) DP)
+damn = Leaf (Op "damn") (FS 0 T (BS 4 (FS 0 N N) S))
 
-ex83 = (Node 0 ann (Node 1 thought (Node 0 everyone left)), S)
-ex84 = (Node 0 ann (Node 1 thought (Node 0 someone left)), S)
+p1 = (Node 0 ann left, S)
+p2 = (Node 0 everyone left, S)
+p3 = (Node 0 ann (Node 0 saw everyone), S)
 
-ex85 = (Node 0 (Node 2 xif (Node 0 anyone left)) (Node 0 ann left), S)
-ex86 = (Node 0 (Node 2 xif (Node 0 someone left)) (Node 0 ann left), S)
+ex83 = (Node 0 ann (Node 2 thought (Node 0 everyone left)), S)
+ex84 = (Node 0 ann (Node 2 thought (Node 0 someone left)), S)
+
+ex85 = (Node 0 ann (Node 3 doubts (Node 0 anyone left)), S)
+ex86 = (Node 0 ann (Node 3 doubts (Node 0 someone left)), S)
 
 ex87 = (Node 0 ann
-          (Node 3 only
-             (Node 1 thought 
+          (Node 4 only
+             (Node 2 thought 
                 (Node 0 someone (Node 0 saw (Node 0 foc bill))))), S)
 
 ex88 = (Node 0 ann
-          (Node 3 only
-             (Node 1 thought 
+          (Node 4 only
+             (Node 2 thought 
                 (Node 0 (Node 0 the (Node 0 damn dog))
                    (Node 0 saw (Node 0 foc bill))))), T)
 
@@ -183,4 +191,3 @@ prettyTerm (Lam i t) = parens (char '\\' <> char (vars!!i) <+> prettyTerm t)
 prettyTerm (App t1 t2) = parens ((prettyTerm t1) <+> (prettyTerm t2))
 
 main = print $ map try [ex83, ex84, ex85, ex86, ex87, ex88]
-
