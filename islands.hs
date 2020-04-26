@@ -125,6 +125,9 @@ p1 = (Node 0 ann left, S)
 p2 = (Node 0 everyone left, S)
 p3 = (Node 0 ann (Node 0 saw everyone), S)
 
+ex81 = (Node 0 someone (Node 1 ensured (Node 0 noone left)), S)
+ex82 = (Node 0 someone (Node 1 ensured (Node 0 everyone left)), S)
+
 ex83 = (Node 0 ann (Node 2 thought (Node 0 everyone left)), S)
 ex84 = (Node 0 ann (Node 2 thought (Node 0 someone left)), S)
 
@@ -141,7 +144,6 @@ ex88 = (Node 0 ann
              (Node 2 thought 
                 (Node 0 (Node 0 the (Node 0 damn dog))
                    (Node 0 saw (Node 0 foc bill))))), T)
-
 
 -- =============================================================================
 
@@ -190,4 +192,4 @@ prettyTerm (Var i) = char (vars!!i)
 prettyTerm (Lam i t) = parens (char '\\' <> char (vars!!i) <+> prettyTerm t)
 prettyTerm (App t1 t2) = parens ((prettyTerm t1) <+> (prettyTerm t2))
 
-main = print $ map try [ex83, ex84, ex85, ex86, ex87, ex88]
+main = print $ map try [ex81, ex82, ex83, ex84, ex85, ex86, ex87, ex88]
