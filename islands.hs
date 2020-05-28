@@ -1,22 +1,20 @@
--- This code implements the fragment described in "Rethinking scope islands"
--- See github.com/cb125/scope-islands
--- load into ghci, then type "main"
-
+{-# LANGUAGE FlexibleContexts #-}
 import Prelude hiding ((<>))
-import Data.List
+import Data.List (nub, sort)
 import Text.PrettyPrint
-import Debug.Trace
+import Debug.Trace (trace)
+import Control.Monad.Memo (MonadMemo, memo, for4, startEvalMemo, liftM2)
 
-abstractionBudget = 1
+abstractionBudget = 2
 
 -- Data structures: Formulas, semantic Terms, syntactic Structures, Proofs:
 data For = DP | S | N | T | F
-              | FS Int For For | BS Int For For deriving (Eq, Show)
-data Ter = Op String | Var Int | Lam Int Ter | App Ter Ter deriving (Eq, Show)
-data Str = Leaf Ter For | Node Int Str Str | I | B | C deriving (Eq, Show)
+              | FS Int For For | BS Int For For deriving (Eq, Show, Ord)
+data Ter = Op String | Var Int | Lam Int Ter | App Ter Ter deriving (Eq, Show, Ord)
+data Str = Leaf Ter For | Node Int Str Str | I | B | C deriving (Eq, Show, Ord)
 data Proof = Proof String Str For [Proof] Ter deriving Show
 instance Eq Proof where (Proof _ b c _ e) == (Proof _ w x _ z)
-                          = (b == w) && (c == x) && e == z
+                          = (b == w) && (c == x) && (etaReduce e == etaReduce z)
 
 focus :: Str -> [Str]
 focus s = case s of 
@@ -43,58 +41,79 @@ isContext :: Str -> Bool
 isContext (Node _ _ (Node _ _ s)) = s == B || s == C
 isContext s = s == I
 
+-- not necessary, but provides significant speedup
+polarityBalanced :: Str -> For -> Bool
+polarityBalanced l r = let pairs = (vals l ++ (valf False r)) in
+    sort [at | (at, True) <- pairs] == (sort [at | (at, False) <- pairs])
+
+vals :: Str -> [(For, Bool)]
+vals (Node _ l r) = vals l ++ (vals r)
+vals (Leaf _ f) = valf True f
+vals _ = []
+
+valf :: Bool -> For -> [(For, Bool)]
+valf b (FS _ l r) = valf b l ++ (valf (not b) r)
+valf b (BS _ l r) = valf (not b) l ++ (valf b r)
+valf b atom = [(atom, b)]
+
 term (Proof s l r ps t) = t
 
+pack :: (Monad m) => [m [Proof]] -> m [Proof]
+pack = foldl (liftM2 (++)) (return []) 
+
+-- memoized for significant gain in efficiency
 -- n is the number of nested abstractions, i is the next unused variable index
-prove :: Str -> For -> Int -> Int -> [Proof]
+prove :: (MonadMemo (Str, For, Int, Int) [Proof] m)
+            => Str -> For -> Int -> Int -> m [Proof]
 prove l r n i = let agenda = focus l in
 
---  trace (show ((prettySeq l r), n)) [] ++
---  trace (show (l, r, n)) [] ++
+--  trace (show (prettySeq l r)) $
 
-  nub (concat [
-    [Proof "Ax" l r [] t | Leaf t r' <- [l], r' == r],
+  if (not (polarityBalanced l r)) then return [] else
 
-    [Proof "Red" l r [x] (term x)
-      | Node m p c <- [l]
-      , m > 0
-      , isContext c
-      , reducible l
-      , x <- prove (plug l) r (n-1) i],
+  pack [
 
-    [Proof "EXP" l r [x] (term x)
-      | n < abstractionBudget
-      , Node _ f c <- agenda
-      , c /= I, f /= I
-      , x <- prove (Node 0 f c) r (n+1) i],
+    pack [return [Proof "Ax" l r [] t] | Leaf t r' <- [l], r' == r],
 
-    [Proof "/R" l r [x] (Lam i (term x))
-      | FS m c b <- [r]
-      , x <- prove (Node m l (Leaf (Var i) b)) c n (i+1)],
+    pack [do xs <- for4 memo prove (plug l) r (n-1) i
+             return [Proof "Red" l r [x] (term x) | x <- xs]
+            | Node m p c <- [l], m > 0, isContext c, reducible l],
 
-    [Proof "\\R" l r [x] (Lam i (term x)) 
-      | BS m a c <- [r]
-      , x <- prove (Node m (Leaf (Var i) a) l) c n (i+1)],
+    pack [do xs <- for4 memo prove (Node 0 f c) r (n+1) i
+             return [Proof "EXP" l r [x] (term x) | x <- xs]
+            | Node _ f c <- agenda, n < abstractionBudget],
 
-    [Proof "/L" l r [x, y] (term y) 
-      | Node _ (Node m (Leaf tl (FS m' b a)) gam)  c <- agenda
-      , m == 0 || m >= m'
-      , x <- prove gam a n i
-      , y <- prove (plug (Node m (Leaf (App tl (term x)) b) c)) r n i],
+    pack [do xs <- for4 memo prove (Node m l (Leaf (Var i) b)) c n (i+1)
+             return [Proof "/R" l r [x] (Lam i (term x)) | x <- xs]
+            | FS m c b <- [r]],
 
-    [Proof "\\L" l r [x, y] (term y) 
-      | Node _ (Node m gam (Leaf tl (BS m' a b))) c <- agenda
-      , m == 0 || m >= m'
-      , x <- prove gam a n i
-      , y <- prove (plug (Node m (Leaf (App tl (term x)) b) c)) r n i]
-    ])
+    pack [do xs <- for4 memo prove (Node m (Leaf (Var i) a) l) c n (i+1)
+             return [Proof "\\R" l r [x] (Lam i (term x)) | x <- xs]
+            | BS m a c <- [r]],
+
+    pack [do xs <- for4 memo prove gam a n i
+             pack [do ys <- for4 memo prove
+                              (plug (Node m (Leaf (App tl (term x)) b) c)) r n i
+                      return [Proof "/L" l r [x, y] (term y) | y <- ys]
+                     | x <- xs]
+            | Node _ (Node m (Leaf tl (FS m' b a)) gam)  c <- agenda
+            , m == 0 || m >= m'],
+
+    pack [do xs <- for4 memo prove gam a n i
+             pack [do ys <- for4 memo prove
+                              (plug (Node m (Leaf (App tl (term x)) b) c)) r n i
+                      return [Proof "\\L" l r [x, y] (term y) | y <- ys]
+                     | x <- xs]
+            | Node _ (Node m gam (Leaf tl (BS m' a b))) c <- agenda
+            , m == 0 || m >= m']
+     ] >>= return . nub 
 
 try :: (Str, For) -> [Doc]
 try (s, f) = map (\p -> (text "\n") <> -- prettyTerm (term p) $+$
                                          prettyTerm (etaReduce (term p)) $+$
---                        prettyProof p $+$  -- uncomment to see derivation
+                        prettyProof p $+$  -- uncomment to see derivation
                            (text "\n"))
-                 (prove s f 0 0)
+                 (startEvalMemo (prove s f 0 0))
 
 etaReduce :: Ter -> Ter
 etaReduce (Lam i (App t (Var i'))) =
@@ -120,10 +139,13 @@ doubts = Leaf (Op "doubts") (FS 3 (BS 0 DP S) S)
 only = Leaf (Op "only") (FS 4 (BS 0 DP S) F)
 foc = Leaf (Op "foc") (FS 0 (FS 0 F (BS 4 DP (BS 0 DP S))) DP)
 damn = Leaf (Op "damn") (FS 0 T (BS 4 (FS 0 N N) S))
+same = Leaf (Op "same") (FS 0 (BS 1 DP S) (BS 1 (FS 0 N N) (BS 1 DP S)))
 
-p1 = (Node 0 ann left, S)
-p2 = (Node 0 everyone left, S)
-p3 = (Node 0 ann (Node 0 saw everyone), S)
+s1 = (Node 0 everyone (Node 0 saw (Node 0 the (Node 0 same dog))), S)
+s2 = (Node 0 (Node 0 the (Node 0 same dog)) (Node 0 saw everyone), S)
+s3 = (Node 0 ann (Node 2 thought (Node 0 (Node 0 the (Node 0 same dog))
+                                         (Node 0 saw everyone))), S)
+s4 = (Node 0 (Node 0 the (Node 0 same dog)) (Node 0 saw ann), S)
 
 ex81 = (Node 0 someone (Node 1 ensured (Node 0 noone left)), S)
 ex82 = (Node 0 someone (Node 1 ensured (Node 0 everyone left)), S)
@@ -150,7 +172,7 @@ ex88 = (Node 0 ann
 prettyProof :: Proof -> Doc
 prettyProof (Proof "Ax" l r ps _) = text "  " <> prettySeq l r
 prettyProof (Proof rule l r [x] _) =
-  text "  " <> (prettyProof x $+$ prettySeq l r <> text (" _" ++ rule))
+  text "  " <> (prettyProof x $+$ prettySeq l r <> text (" " ++ rule))
 prettyProof (Proof rule l r [x,y] _) =
   text "  " <> (prettyProof x $+$ prettyProof y $+$ prettySeq l r
             <> text (" _" ++ rule))
