@@ -2,10 +2,10 @@
 
 I'm Chris Barker (https://nyu.edu/projects/barker).
 
-This project uses syntactic modes of composition to explore scope islands.
+This project uses syntactic modes of composition to explore scope islands.  There are two related papers:
 
-As of 27 August, there is a revised draft of a paper called "Rethinking scope islands".
+As of 30 December 2020, the final or prefinal version of "The logic of Quantifier Raising", to appear in Semantics and Pragmatics.
 
-The Haskell code (islands.hs) implements the fragment from the draft.  Try loading the code into ghci, then type "main".
+As of 30 December 2020, the final or prefinal version of "Rethinking scope islands", to appear in Linguistic Inquiry.
 
-The paper "The Logic of Quantifier Raising" is a manuscript currently under review.  It provides background about Quantifier Raising, which is the main tool used in the draft and the code.
+The Haskell code (islands.hs) implements the fragment from the "rethinking" draft.  Try loading the code into ghci, then type "main".
