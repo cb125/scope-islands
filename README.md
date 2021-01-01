@@ -1,6 +1,6 @@
 # scope-islands
 
-I'm Chris Barker (https://nyu.edu/projects/barker).
+I'm Chris Barker (https://cb125.github.io/).
 
 This project uses syntactic modes of composition to explore scope islands.  There is a draft titled "Rethinking scope islands," which is in press at *Linguistic Inquiry*.
 
